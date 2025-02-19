@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn Error>>{
 
     if options.len() == 1 {
         run_c(options[0].clone())?;
+        kill_parent_procss();
 
         return Ok(())
     }
@@ -105,15 +106,19 @@ fn main() -> Result<(), Box<dyn Error>>{
 
     // kill parent process 
     // turn shell into code instance
+
+    kill_parent_procss();
+    Ok(())
+}
+
+
+fn kill_parent_procss(){
     let ppid = unsafe { libc::getppid() };
     if ppid > 1 {
         let _ = kill(Pid::from_raw(ppid), Signal::SIGKILL);
     }
 
-
-    Ok(())
 }
-
 
 fn run_c(selected_dir: String) -> Result<(), Box<dyn Error>>{
 
