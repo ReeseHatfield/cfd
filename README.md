@@ -24,9 +24,9 @@ cfd [approximate name of directory]
 
 ## Installation
 Prerequisites:
-    - `cargo`
-    - `zoxide`
-    - `code`
+  - `cargo`
+  - `zoxide`
+  - `code`
 
 ```bash
 ./install.sh
