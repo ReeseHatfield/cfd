@@ -9,6 +9,8 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use ratatui::prelude::CrosstermBackend;
 use ratatui::Terminal;
 
+use nix::sys::signal::{kill, Signal};
+use nix::unistd::Pid;
 
 use ratatui::{prelude::*, widgets::*};
 
@@ -16,27 +18,51 @@ use ratatui::{prelude::*, widgets::*};
 fn main() -> Result<(), Box<dyn Error>>{
 
     let options = get_options()?;
-    // println!("options: {:?}", options);
-
-
 
     enable_raw_mode()?;
     let stdout = io::stdout();
-
-
-
 
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout))?;
 
     let mut selected_index = 0;
 
     loop {
+        // terminal.draw(|frame| {
+        //     let size = frame.area();
+        //     let menu: Vec<ListItem> = options
+        //         .iter()
+        //         .enumerate()
+        //         .map(|(i, &ref item)| {
+        //             let style = if i == selected_index {
+        //                 Style::default().fg(Color::Yellow).bg(Color::Blue)
+        //             } else {
+        //                 Style::default()
+        //             };
+        //             ListItem::new(item.as_str()).style(style)
+        //         })
+        //         .collect();
+
+        //     let list = List::new(menu).block(Block::default().borders(Borders::ALL).title("Menu"));
+        //     frame.render_widget(list, size);
+        // })?;
+
         terminal.draw(|frame| {
-            let size = frame.size();
+            // Get the full terminal size
+            let size = frame.area();
+            let width = size.width;
+            let height = size.height;
+        
+            // We assume we are rendering below any existing content (e.g., the current cursor position)
+            // So we start from a fixed y-coordinate, or you can calculate based on terminal content height
+            let start_y = 1; // Render just below the first line (or adjust this value)
+        
+            // Define the area for the menu
+            let menu_area = Rect::new(0, start_y, width, height - start_y);
+        
             let menu: Vec<ListItem> = options
                 .iter()
                 .enumerate()
-                .map(|(i, &ref item)| {
+                .map(|(i, item)| {
                     let style = if i == selected_index {
                         Style::default().fg(Color::Yellow).bg(Color::Blue)
                     } else {
@@ -45,12 +71,14 @@ fn main() -> Result<(), Box<dyn Error>>{
                     ListItem::new(item.as_str()).style(style)
                 })
                 .collect();
-
-            let list = List::new(menu).block(Block::default().borders(Borders::ALL).title("Menu"));
-            frame.render_widget(list, size);
+        
+            let list = List::new(menu)
+                .block(Block::default().borders(Borders::ALL).title("Menu"));
+        
+            // Render the list widget in the defined area below the terminal prompt or previous content
+            frame.render_widget(list, menu_area);
         })?;
-
-
+        
         // you'd think a tui app would just have an api for this
         if let event::Event::Key(KeyEvent { code, .. }) = event::read()? {
             match code {
@@ -68,6 +96,7 @@ fn main() -> Result<(), Box<dyn Error>>{
                 KeyCode::Esc => {
                     //graceful exit?
                     std::process::exit(1);
+                    // also need this for ctrl+c
                 },
                 _ => {}
             }
@@ -78,8 +107,26 @@ fn main() -> Result<(), Box<dyn Error>>{
 
     let selected_dir = options[selected_index].clone();
 
-    println!("Selected item was {}", selected_dir);
+    run_c(selected_dir)?;
 
+    // kill parent process 
+    // turn shell into code instance
+    let ppid = unsafe { libc::getppid() };
+    if ppid > 1 {
+        let _ = kill(Pid::from_raw(ppid), Signal::SIGKILL);
+    }
+
+
+    Ok(())
+}
+
+
+fn run_c(selected_dir: String) -> Result<(), Box<dyn Error>>{
+
+    let _child = Command::new("code")
+        .arg("-n")
+        .arg(selected_dir)
+        .output();
 
     Ok(())
 }
@@ -99,15 +146,12 @@ fn parse_args() -> Result<String, Box<dyn Error>> {
         .collect::<Vec<String>>()
         .join("");
 
-
     Ok(query)
 }
 
 
 fn get_options() -> Result<Vec<String>, Box<dyn Error>> {
     let z_query = parse_args()?;
-
-    // println!("query: {:?}", z_query);
 
     let child = Command::new("zoxide")
         .arg("query")
@@ -117,13 +161,11 @@ fn get_options() -> Result<Vec<String>, Box<dyn Error>> {
     
     let query_res = str::from_utf8(&child.stdout)?;
 
-
     let options: Vec<String> = query_res
         .split("\n")
         .map(|s| s.to_owned())
         .filter(|s| !s.is_empty()) // remove newline at EOF
         .collect();
-
 
     Ok(options)
 
