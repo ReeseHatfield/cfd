@@ -39,11 +39,9 @@ fn main() -> Result<(), Box<dyn Error>>{
     let mut selected_index = 0;
 
 
-
     loop {
 
         terminal.draw(|frame| {
-            // Get the full terminal size
             let size = frame.area();
             let width = size.width;
             let height = size.height;
@@ -68,7 +66,6 @@ fn main() -> Result<(), Box<dyn Error>>{
             let list = List::new(menu)
                 .block(Block::default().borders(Borders::ALL).title("cfd"));
         
-            // Render the list widget in the defined area below the terminal prompt or previous content
             frame.render_widget(list, menu_area);
         })?;
         
