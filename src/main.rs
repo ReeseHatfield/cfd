@@ -4,11 +4,11 @@ use std::process::Command;
 use std::{env, io};
 
 use crossterm::event::{KeyCode, KeyEvent};
-use crossterm::event;
+use crossterm::{event, ExecutableCommand};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use ratatui::prelude::CrosstermBackend;
 use ratatui::Terminal;
-
+use ratatui::crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 
@@ -19,32 +19,27 @@ fn main() -> Result<(), Box<dyn Error>>{
 
     let options = get_options()?;
 
-    enable_raw_mode()?;
-    let stdout = io::stdout();
+    if options.len() == 1 {
+        run_c(options[0].clone())?;
 
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout))?;
+        return Ok(())
+    }
+
+    enable_raw_mode()?;
+
+
+    let mut stdout = io::stdout();
+    stdout.execute(EnterAlternateScreen)?;
+
+    let backend = CrosstermBackend::new(stdout);
+
+    let mut terminal = Terminal::new(backend)?;
 
     let mut selected_index = 0;
 
-    loop {
-        // terminal.draw(|frame| {
-        //     let size = frame.area();
-        //     let menu: Vec<ListItem> = options
-        //         .iter()
-        //         .enumerate()
-        //         .map(|(i, &ref item)| {
-        //             let style = if i == selected_index {
-        //                 Style::default().fg(Color::Yellow).bg(Color::Blue)
-        //             } else {
-        //                 Style::default()
-        //             };
-        //             ListItem::new(item.as_str()).style(style)
-        //         })
-        //         .collect();
 
-        //     let list = List::new(menu).block(Block::default().borders(Borders::ALL).title("Menu"));
-        //     frame.render_widget(list, size);
-        // })?;
+
+    loop {
 
         terminal.draw(|frame| {
             // Get the full terminal size
@@ -52,11 +47,8 @@ fn main() -> Result<(), Box<dyn Error>>{
             let width = size.width;
             let height = size.height;
         
-            // We assume we are rendering below any existing content (e.g., the current cursor position)
-            // So we start from a fixed y-coordinate, or you can calculate based on terminal content height
-            let start_y = 1; // Render just below the first line (or adjust this value)
+            let start_y = 1; 
         
-            // Define the area for the menu
             let menu_area = Rect::new(0, start_y, width, height - start_y);
         
             let menu: Vec<ListItem> = options
@@ -73,7 +65,7 @@ fn main() -> Result<(), Box<dyn Error>>{
                 .collect();
         
             let list = List::new(menu)
-                .block(Block::default().borders(Borders::ALL).title("Menu"));
+                .block(Block::default().borders(Borders::ALL).title("cfd"));
         
             // Render the list widget in the defined area below the terminal prompt or previous content
             frame.render_widget(list, menu_area);
@@ -107,6 +99,8 @@ fn main() -> Result<(), Box<dyn Error>>{
 
     let selected_dir = options[selected_index].clone();
 
+    terminal.backend_mut().execute(LeaveAlternateScreen)?;
+    
     run_c(selected_dir)?;
 
     // kill parent process 
