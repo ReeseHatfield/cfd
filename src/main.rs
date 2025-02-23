@@ -1,7 +1,7 @@
-use core::str;
 use std::error::Error;
 use std::process::Command;
 use std::{env, io};
+use core::str;
 
 use crossterm::event::{KeyCode, KeyEvent};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
@@ -14,10 +14,7 @@ use ratatui::Terminal;
 
 use ratatui::{prelude::*, widgets::*};
 use shellexpand::tilde;
-use strum_macros::{Display, EnumString};
 
-use serde::{Deserialize, Serialize};
-use serde_json;
 use std::fs;
 
 
@@ -37,7 +34,15 @@ pub trait Editor {
 impl Editor for Neovim {
 
     fn run(&self, path: &str) -> Result<(), Box<dyn Error>> {
-        return Ok(())
+
+        let _child = Command::new(self.get_editor_cmd())
+            .arg(path)
+            .status()?; 
+        // status -> attaches to current process
+        // vs output dumping it
+
+        return Ok(());
+        
     }
 
     fn get_editor_cmd(&self) -> &'static str {
@@ -49,7 +54,15 @@ impl Editor for Neovim {
 impl Editor for Vim {
 
     fn run(&self, path: &str) -> Result<(), Box<dyn Error>> {
-        return Ok(())
+
+        let mut child = Command::new(self.get_editor_cmd())
+            .arg(path)
+            .spawn()?;
+
+        child.wait()?;
+
+        return Ok(());
+
     }
 
     fn get_editor_cmd(&self) -> &'static str {
@@ -81,12 +94,9 @@ impl Editor for VSCode {
 struct SupportedEditor(Box<dyn Editor>);
 
 
-
-
 struct Config {
     editor: SupportedEditor
 }
-
 
 
 fn get_config() -> Result<Config, Box<dyn Error>> {
@@ -102,7 +112,6 @@ fn get_config() -> Result<Config, Box<dyn Error>> {
         "editor": "Neovim"
     }
      */
-
      // horrible but I dont wanna use serde because the structs dont match ;-;
     let editor_name = content
         .replace("{", "")
@@ -114,11 +123,14 @@ fn get_config() -> Result<Config, Box<dyn Error>> {
         .replace("\"","");
 
 
-    let editor: SupportedEditor = match editor_name.as_str() {
+    println!("editor name was {}", editor_name);
+
+    let editor: SupportedEditor = match editor_name.as_str().trim() {
         "Neovim" => { SupportedEditor(Box::new(Neovim {})) },
         "Vim" => { SupportedEditor(Box::new(Vim{}))},
         "VSCode" => { SupportedEditor(Box::new(VSCode{}))}
         _ => return Err("Unsupported editor".into())
+        
     };
 
     return Ok(Config{
@@ -131,8 +143,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let config = get_config()?;
 
-    // println!("config was {:?}", config);
     let options = get_options()?;
+
+    // println!("options was {:?}", options);
+
+
+    // let ten_millis = std::time::Duration::from_millis(1000);
+
+    // std::thread::sleep(ten_millis);
+
 
     if options.len() == 1 {
         config.editor.0.run(&options[0])?;
@@ -211,13 +230,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 
 
-
-    // run_editor(selected_dir, config.editor)?;
-
-    // kill parent process
-    // turn shell into code instance
-
-    // kill_parent_procss();
+    config.editor.0.run(&options[0])?;
     Ok(())
 }
 
